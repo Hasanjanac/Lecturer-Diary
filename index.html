@@ -20142,12 +20142,19 @@ button.x{background:none;border:0;color:var(--wn);cursor:pointer;font-size:16px}
 .mu{color:var(--mu);font-size:13px}
 .tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
 td,th{border:1px solid var(--bd);padding:6px 8px;vertical-align:top;text-align:left}th{background:var(--bg)}
-.pre{white-space:pre-line}.hide{display:none}#msg{font-size:13px;color:var(--ac);min-height:20px}
-</style></head><body><main>
+.pre{white-space:pre-line}.hide{display:none!important}#lock{padding:16px}#msg{font-size:13px;color:var(--ac);min-height:20px}
+</style></head><body><div id="lock" class="hide"><div class="card" style="max-width:380px;margin:12vh auto 0">
+<h1 id="lt"></h1><p class="sub" id="ls"></p>
+<label>Password<input type="password" id="pw" autocomplete="current-password"></label>
+<label id="pw2w" style="margin-top:10px">Confirm password<input type="password" id="pw2" autocomplete="new-password"></label>
+<p id="lerr" style="color:var(--wn);font-size:13px;min-height:18px;margin:8px 0"></p>
+<button class="p" id="lgo" style="width:100%"></button>
+<p style="text-align:center;margin:10px 0 0"><button class="x" id="forgot" style="color:var(--mu);font-size:13px">Forgot password?</button></p></div></div>
+<main id="app" class="hide">
 <h1>Lecturer Diary</h1>
 <p class="sub">Log your activities as they happen. The monthly report builds itself.</p>
 <div class="bar"><label>Month<input type="month" id="mon"></label>
-<div class="tabs" style="display:flex;gap:6px;margin-top:16px"><button data-t="d" class="on">Diary</button><button data-t="w">Weekly schedule</button><button data-t="r">Report</button></div></div>
+<div class="tabs" style="display:flex;gap:6px;margin-top:16px"><button data-t="d" class="on">Diary</button><button data-t="w">Weekly schedule</button><button data-t="r">Report</button></div><button class="s" id="lockbtn" style="margin-top:16px;margin-left:auto">🔒 Lock</button></div>
 <div id="msg"></div>
 
 <section id="t-d">
@@ -20177,7 +20184,7 @@ td,th{border:1px solid var(--bd);padding:6px 8px;vertical-align:top;text-align:l
 <b id="rt"></b><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="p" id="gen">Download Word report</button>
 <button class="s" id="bk">Backup data</button><button class="s" id="rs">Restore backup</button><button class="s" id="clr">Clear all data</button><input type="file" id="fi" accept=".json" class="hide"></div></div>
 <div class="tw" style="margin-top:12px"><table id="rp"></table></div>
-<p class="mu">Head’s comments and all signatures are left blank for you to complete by hand.</p></div></section>
+<p class="mu">Head’s comments and all signatures are left blank for you to complete by hand. Backup files are NOT password protected, so keep them somewhere safe.</p></div></section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -20189,11 +20196,12 @@ const OTHER=[["other","Other daily work (diary only – NOT in report)"]];
 const ALL=[...HOURLY.map(h=>[h[0],h[1]]),...TEXT,...OTHER], GR=new Set(HOURLY.filter(h=>h[2]).map(h=>h[0])), HR=new Set(HOURLY.map(h=>h[0]));
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const uid=()=>Math.random().toString(36).slice(2,9);
-let S={name:"D.M.H.C Dissanayake",weeks:4,month:"2026-08",
-rec:[["lecture","A",2],["lecture","B",4],["practical","A",4],["practical","B",4],["prep","",4],["project","A",1],["project","B",1]].map(r=>({id:uid(),cat:r[0],g:r[1],h:r[2]})),
-ent:[{date:"2026-08-12",cat:"invig",g:"",h:0,note:"Selection test for Field supervisor – Aptitude test",canc:false},{date:"2026-08-12",cat:"meeting",g:"",h:0,note:"Department meeting",canc:false},{date:"2026-08-10",cat:"research",g:"",h:0,note:"Evaluating the nitrogen requirements of rice (Oryza sativa) by the analysis of RGB images captured by unmanned aerial vehicles",canc:false}].map(e=>({id:uid(),...e}))};
-try{const t=localStorage.getItem("diary_v1");if(t)S=JSON.parse(t)}catch(e){}
-const save=()=>{try{localStorage.setItem("diary_v1",JSON.stringify(S))}catch(e){}};
+const _m=new Date().toISOString().slice(0,7),blank=()=>({name:"",weeks:4,month:_m,rec:[],ent:[]});
+let S=blank(),KEY=null,VAULT=null;
+const b64=u=>{let t="";for(const b of new Uint8Array(u))t+=String.fromCharCode(b);return btoa(t)},ub=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+async function derive(pw,salt){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:250000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function persist(){if(!KEY||!VAULT)return;const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},KEY,new TextEncoder().encode(JSON.stringify(S)));VAULT.iv=b64(iv);VAULT.data=b64(ct);localStorage.setItem("diary_enc_v1",JSON.stringify(VAULT))}
+const save=()=>{persist().catch(e=>say("Could not save: "+(e.message||e)))};
 const say=t=>{$("msg").textContent=t;setTimeout(()=>{if($("msg").textContent===t)$("msg").textContent=""},4000)};
 const catName=c=>(ALL.find(a=>a[0]===c)||[])[1]||c;
 function opts(sel,list){sel.innerHTML=list.map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join("")}
@@ -20257,5 +20265,28 @@ $("bk").onclick=()=>saveFile("lecturer_diary_backup.json",new Blob([JSON.stringi
 $("clr").onclick=()=>{if(confirm("Delete ALL diary entries and the weekly schedule? Download a backup first if unsure.")){S.ent=[];S.rec=[];save();all()}};
 $("rs").onclick=()=>$("fi").click();
 $("fi").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o.ent||!o.rec)throw 0;S=o;save();$("mon").value=S.month;all();say("Backup restored.")}catch(x){say("That file is not a valid backup.")}};r.readAsText(f)};
-toggles();all();
+const err=t=>{$("lerr").textContent=t};
+function boot(){VAULT=null;try{const r=localStorage.getItem("diary_enc_v1");if(r)VAULT=JSON.parse(r)}catch(e){}
+let old=null;try{old=localStorage.getItem("diary_v1")}catch(e){}
+const setup=!VAULT;$("lock").classList.remove("hide");$("app").classList.add("hide");$("pw2w").classList.toggle("hide",!setup);$("forgot").classList.toggle("hide",setup);
+$("lt").textContent=setup?"Create a password":"Sign in";
+$("ls").textContent=setup?(old?"Your existing diary will be encrypted with this password.":"This password protects your diary on this device. It cannot be recovered if you forget it, so keep a backup."):"Enter your password to open your diary.";
+$("lgo").textContent=setup?"Create password & open":"Unlock";$("pw").value="";$("pw2").value="";err("");$("pw").focus()}
+function start(){$("lock").classList.add("hide");$("app").classList.remove("hide");$("mon").value=S.month;toggles();all();bump()}
+$("lgo").onclick=async()=>{try{
+if(!(window.crypto&&crypto.subtle))return err("Encryption isn’t available here. Use Chrome, Edge or Firefox, or open the https link.");
+const pw=$("pw").value;if(pw.length<6)return err("Use at least 6 characters.");
+if(!VAULT){if(pw!==$("pw2").value)return err("The two passwords don’t match.");
+const salt=crypto.getRandomValues(new Uint8Array(16));KEY=await derive(pw,salt);VAULT={salt:b64(salt)};
+let old=null;try{old=localStorage.getItem("diary_v1")}catch(e){}
+if(old){try{S=JSON.parse(old)}catch(e){S=blank()}}else S=blank();
+await persist();try{localStorage.removeItem("diary_v1")}catch(e){}}
+else{const k=await derive(pw,ub(VAULT.salt));try{S=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:ub(VAULT.iv)},k,ub(VAULT.data))));KEY=k}catch(e){return err("Wrong password.")}}
+start()}catch(e){err("Something went wrong: "+(e.message||e))}};
+["pw","pw2"].forEach(i=>$(i).addEventListener("keydown",e=>{if(e.key==="Enter")$("lgo").click()}));
+$("lockbtn").onclick=()=>{KEY=null;S=blank();boot()};
+$("forgot").onclick=()=>{if(confirm("This permanently deletes the diary stored in this browser, because it can’t be opened without the password. You can restore from a backup file afterwards. Continue?")){try{localStorage.removeItem("diary_enc_v1")}catch(e){}boot()}};
+let idle;function bump(){clearTimeout(idle);if(KEY)idle=setTimeout(()=>$("lockbtn").click(),15*60000)}
+["click","keydown","touchstart"].forEach(e=>document.addEventListener(e,bump));
+boot();
 </script></body></html>
